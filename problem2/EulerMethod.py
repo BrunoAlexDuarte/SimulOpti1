@@ -1,7 +1,11 @@
 import random
 import sys
+import numpy as np
 from matplotlib.pyplot import show
 from pylab import *
+import time
+
+start_time = time.time()
 
 def initialization():
     global s, r, i, t, sr, ir, rr, tr
@@ -49,3 +53,9 @@ plt.ylabel('Population')
 plt.legend(loc='center right')
 plt.show()
 
+data = np.column_stack((tr, sr, ir, rr))
+np.savetxt('data_euler.txt', data, delimiter='\t', header='Time\tPopulation', fmt='%.4f')
+
+end_time = time.time()
+computational_time_euler = end_time - start_time
+print(f"Computational Time - Forward Euler: {computational_time_euler} seconds")

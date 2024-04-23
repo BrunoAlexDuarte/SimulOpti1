@@ -2,6 +2,9 @@ import random
 import sys
 from matplotlib.pyplot import show
 from pylab import *
+import time
+
+start_time = time.time()
 
 def initialization():
     global s, r, i, t, sr, ir, rr, tr
@@ -65,3 +68,10 @@ plt.xlabel('Time')
 plt.ylabel('Population')
 plt.legend(loc='center right')
 plt.show()
+
+data = np.column_stack((tr, sr, ir, rr))
+np.savetxt('data_rk.txt', data, delimiter='\t', header='Time\tPopulation', fmt='%.4f')
+
+end_time = time.time()
+computational_time_euler = end_time - start_time
+print(f"Computational Time - Runge-Kutta: {computational_time_euler} seconds")
