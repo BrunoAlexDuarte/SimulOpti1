@@ -40,8 +40,12 @@ for t in range(tf):
     update()
     observe()
 
-plot(tr,sr)
-plot(tr,ir)
-plot(tr,rr)
-show()
+plt.plot(tr,sr,label='Susceptible population')
+plt.plot(tr,ir,label='Infected population')
+plt.plot(tr,rr,label='Recovered population')
+plt.title('Evolution of an infectious disease in a population')
+plt.xlabel('Time')
+plt.ylabel('Population')
+plt.legend(loc='center right')
+plt.show()
 
