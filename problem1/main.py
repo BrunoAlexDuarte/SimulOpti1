@@ -65,13 +65,14 @@ def demand_costumer():
     all_customer_demands += order;
 
     #If we can satisfy the order with our inventory_levels, we do so
-    if inventory_levels >= order:
-        inventory_levels -= order;
-    else:
+    #if inventory_levels >= order:
+    #    inventory_levels -= order;
+    #else:
         #If not, we take all that remains in the inventory and put the rest in backlog
-        backlogged_demand = backlogged_demand + order - inventory_levels;
-        inventory_levels = 0;
-    
+        #backlogged_demand = backlogged_demand + order - inventory_levels;
+    #    inventory_levels = 0;
+    inventory_levels -= order;
+
     #Place the event for the next order
     time_next_order = sim_time + random.exponential(scale=0.1)
     time_next_event.append(('customer_demand', time_next_order))
@@ -89,10 +90,22 @@ def inventory_evaluation_and_ordering():
     global handling_cost
     global all_orders
 
+    #SE O INVENTARIO FOR MENOR QUE ZERO COLOCO EXPRESSO
+
     #Check the inventory levels
     to_order = 0;
-    if inventory_levels < small_s:
-        to_order = big_s - inventory_levels + backlogged_demand;
+    inc = inc_normal;
+    base = base_normal;
+    #if inventory_levels == 0 and backlogged_demand > 0:
+    if inventory_levels < 0:
+        to_order = big_s - inventory_levels;
+        inc = inc_express;
+        base = base_express;
+        next_delivery_time = sim_time + random.uniform(0.25, 0.5)
+    elif inventory_levels < small_s:
+        #to_order = big_s - inventory_levels + backlogged_demand;
+        to_order = big_s - inventory_levels;
+        next_delivery_time = sim_time + random.uniform(0.5, 1)
 
     #Add the next event to evaluate inventory
     next_avaliation_time = sim_time + 1;
@@ -105,20 +118,20 @@ def inventory_evaluation_and_ordering():
         global inc
         print("now have", inventory_levels, " so will order", to_order)
 
-        ordereing_cost += 32 + inc * to_order;
+        ordereing_cost += base + inc * to_order;
         outstanding_order = to_order;
         all_orders += 1;
 
         #Adds the event to receive the new stock
-        next_delivery_time = sim_time + random.uniform(0.5, 1)
         time_next_event.append(('delivery', next_delivery_time))
-
 
     #Adds cust 1 for every item in the inventory
     handling_cost += inventory_levels
     
     #Adds cost 5 per item in the backlog
-    shortage_cost += 5 * backlogged_demand
+    if inventory_levels < 0:
+        #shortage_cost += 5 * backlogged_demand
+        shortage_cost += - 5 * inventory_levels; #Negative because the inventory level is negative also
 
 #Event: End of the simulation
 def end_simulation():
@@ -136,14 +149,17 @@ sim_time = 0.0
 # state variables
 outstanding_order = 0;
 time_last_event = 0.0;
-backlogged_demand = 0;
+#backlogged_demand = 0;
 
 all_s = [[20,40], [20,60], [20,80], [20,100], [40,60], [40,80], [60,80], [60,100]];
 
 s = all_s[0];
 small_s = s[0];
 big_s = s[1];
-inc = 3
+inc_normal = 3
+inc_express = 4
+base_normal = 32;
+base_express = 48;
 
 inventory_levels = big_s + 20;
 continue_simulation = True;
