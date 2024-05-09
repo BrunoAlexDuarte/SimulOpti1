@@ -3,12 +3,37 @@
 
 import numpy.random as random
 
-#Make time pass
-def timing():
-    global next_event_type 
-    global time_next_event
-    global sim_time
 
+def add_items(num_items, items_inventory, inventory_levels, sim_time):
+
+    for i in range(num_items):
+        new_time = sim_time + random.uniform(1.5, 2.5)
+        items_inventory.append(new_time)
+    inventory_levels += num_items;
+    return inventory_levels
+
+def take_items(num_items, items_inventory, inventory_levels, sim_time):
+
+    to_take = num_items;
+    print("WILL TAKE:", num_items, " WITH IN INVENTORY:", inventory_levels)
+    for i in range(inventory_levels):
+        item = items_inventory.pop(0);
+        if (item >= sim_time):
+            num_items -= 1;
+            if num_items == 0:
+                break;
+        else:
+            to_take += 1;
+    inventory_levels = inventory_levels - to_take;
+    print("TOOK:", to_take)
+    return inventory_levels
+        
+
+
+#Make time pass
+def timing(next_event_type, time_next_event, sim_time):
+
+    print(time_next_event)
     min_time_next_event = 1e9
 
     next_event_type = ''
@@ -26,33 +51,27 @@ def timing():
         sys.exit()
     #We advance the time to the next event
     sim_time = min_time_next_event
+    return next_event_type, sim_time
 
 #Event: the order arrives
-def arrive_order():
-    global inventory_levels
-    global backlogged_demand
-    global outstanding_order
-
+def arrive_order(inventory_levels, outstanding_order, items_inventory, sim_time):
     #Update the inventory levels, taking first the ones that were backlogged
     print("received:", outstanding_order, " and have:", inventory_levels)
-    if outstanding_order > backlogged_demand:
-        inventory_levels = inventory_levels + outstanding_order - backlogged_demand;
-        backlogged_demand = 0;
-        outstanding_order = 0;
-    else:
+    inventory_levels = add_items(outstanding_order, items_inventory, inventory_levels, sim_time);
+    #inventory_levels += outstanding_order;
+    #if outstanding_order > backlogged_demand:
+        #    inventory_levels = inventory_levels + outstanding_order - backlogged_demand;
+    #    backlogged_demand = 0;
+    #    outstanding_order = 0;
+    #else:
         #If we hav more backlogged items than the ones we received
-        backlogged_demand -= outstanding_order
-        outstanding_order = 0;
+    #    backlogged_demand -= outstanding_order
+    #    outstanding_order = 0;
     print("now have:", inventory_levels)
+    return inventory_levels
 
 #Event: a customer places a order
-def demand_costumer():
-    global inventory_levels 
-    global backlogged_demand
-    global time_next_event
-    global sim_time
-    global all_customer_demands
-
+def demand_costumer(inventory_levels, items_inventory, inc_normal, inc_express, all_customer_demands, time_next_event, sim_time):
     #Calculate the quantity to order
     order_rand = random.uniform(0,6)
     order = 4;
@@ -71,25 +90,17 @@ def demand_costumer():
         #If not, we take all that remains in the inventory and put the rest in backlog
         #backlogged_demand = backlogged_demand + order - inventory_levels;
     #    inventory_levels = 0;
-    inventory_levels -= order;
+    inventory_levels = take_items(order, items_inventory, inventory_levels, sim_time);
+
 
     #Place the event for the next order
     time_next_order = sim_time + random.exponential(scale=0.1)
     time_next_event.append(('customer_demand', time_next_order))
     print("sold:", order)
+    return inventory_levels
 
 #Evento: begining of the month, reavaluate inventory
-def inventory_evaluation_and_ordering():
-    global inventory_levels
-    global time_next_event
-    global backlogged_demand
-    global small_s
-    global big_s
-    global sim_time
-    global shortage_cost
-    global handling_cost
-    global all_orders
-
+def inventory_evaluation_and_ordering(inventory_levels, time_next_event, small_s, big_s, inc_normal, base_normal, inc_express, base_express, sim_time, shortage_cost, handling_cost, all_orders, outstanding_order, ordering_cost):
     #SE O INVENTARIO FOR MENOR QUE ZERO COLOCO EXPRESSO
 
     #Check the inventory levels
@@ -113,95 +124,107 @@ def inventory_evaluation_and_ordering():
 
     #Check that the quantity to demmand is bigger than zero
     if to_order > 0:
-        global outstanding_order
-        global ordereing_cost
-        global inc
+        #global outstanding_order
+        #global ordereing_cost
         print("now have", inventory_levels, " so will order", to_order)
 
-        ordereing_cost += base + inc * to_order;
+        ordering_cost += base + inc * to_order;
         outstanding_order = to_order;
         all_orders += 1;
 
         #Adds the event to receive the new stock
         time_next_event.append(('delivery', next_delivery_time))
 
-    #Adds cust 1 for every item in the inventory
-    handling_cost += inventory_levels
     
     #Adds cost 5 per item in the backlog
     if inventory_levels < 0:
         #shortage_cost += 5 * backlogged_demand
         shortage_cost += - 5 * inventory_levels; #Negative because the inventory level is negative also
+    else:
+        #Adds cust 1 for every item in the inventory
+        handling_cost += inventory_levels
+    return outstanding_order
 
 #Event: End of the simulation
-def end_simulation():
-    global continue_simulation
+def end_simulation(continue_simulation):
+    #global continue_simulation
+    print("INSIDE")
     continue_simulation = False
 
 
 # main
-
 # initialize
-
-# simulation clock
-sim_time = 0.0
-
 # state variables
-outstanding_order = 0;
-time_last_event = 0.0;
-#backlogged_demand = 0;
 
-all_s = [[20,40], [20,60], [20,80], [20,100], [40,60], [40,80], [60,80], [60,100]];
+def main():
+    sim_time = 0
+    outstanding_order = 0;
+    time_last_event = 0.0;
 
-s = all_s[0];
-small_s = s[0];
-big_s = s[1];
-inc_normal = 3
-inc_express = 4
-base_normal = 32;
-base_express = 48;
+    outstanding_order = 0;
+    time_last_event = 0.0;
+    #backlogged_demand = 0;
 
-inventory_levels = big_s + 20;
-continue_simulation = True;
+    all_s = [[20,40], [20,60], [20,80], [20,100], [40,60], [40,80], [60,80], [60,100]];
 
-# statistics
-total_cost = 0;
-handling_cost = 0;
-ordereing_cost = 0;
-shortage_cost = 0;
-all_customer_demands = 0;
-all_orders = 0;
-    
-# event list
-time_next_event = []
-time_next_event.append(("End_simulation", 120))
+    s = all_s[0];
+    small_s = s[0];
+    big_s = s[1];
 
-time_next_order = random.exponential(scale=0.1)
-time_next_event.append(('customer_demand', time_next_order))
-time_next_event.append(('avaliation', 1))
+    inc_normal = 3
+    inc_express = 4
+    base_normal = 32;
+    base_express = 48;
+    simulation_end_months = 10
 
-next_event_type = ''
+    inventory_levels = 0;
+    continue_simulation = True;
 
-#Até ao fim da simulação
-while continue_simulation:
-    
-    #Faz o tempo passar
-    timing()
-    
-    #Caso o próximo evento seja um cliente chegar ou sair, executa a função respetiva
-    if next_event_type == 'End_simulation':
-        end_simulation()
-    elif next_event_type == 'avaliation':
-        inventory_evaluation_and_ordering()
-    elif next_event_type == 'customer_demand':
-        demand_costumer()
-    elif next_event_type == 'delivery':
-        arrive_order()
-       
-print("total_cost:", handling_cost+ordereing_cost+shortage_cost)
-print("handling_cost:", handling_cost)
-print("ordereing_cost:", ordereing_cost)
-print("shortage_cost:", shortage_cost)
-print("total_demands:", all_customer_demands)
-print("total_orders:", all_orders)
-##
+    # statistics
+    total_cost = 0;
+    handling_cost = 0;
+    ordering_cost = 0;
+    shortage_cost = 0;
+    all_customer_demands = 0;
+    all_orders = 0;
+    items_inventory = [];
+    inventory_levels = add_items(big_s + 20, items_inventory, inventory_levels, sim_time);
+
+    time_next_event = []
+    time_next_event.append(("End_simulation", simulation_end_months))
+
+    time_next_order = random.exponential(scale=0.1)
+    time_next_event.append(('customer_demand', time_next_order))
+    time_next_event.append(('avaliation', 1))
+
+    next_event_type = ''
+
+    #Até ao fim da simulação
+    while continue_simulation:
+        
+        #Faz o tempo passar
+        next_event_type, sim_time = timing(next_event_type, time_next_event, sim_time)
+
+        #Caso o próximo evento seja um cliente chegar ou sair, executa a função respetiva
+        if next_event_type == 'End_simulation':
+            end_simulation(continue_simulation)
+        elif next_event_type == 'avaliation':
+            outstanding_order = inventory_evaluation_and_ordering(inventory_levels, time_next_event, small_s, big_s, inc_normal, base_normal, inc_express, base_express, sim_time, shortage_cost, handling_cost, all_orders, outstanding_order, ordering_cost)  
+        elif next_event_type == 'customer_demand':
+            inventory_levels = demand_costumer(inventory_levels, items_inventory, inc_normal, inc_express, all_customer_demands, time_next_event, sim_time)
+        elif next_event_type == 'delivery':
+            inventory_levels = arrive_order(inventory_levels, outstanding_order, items_inventory, sim_time)
+        input("COPNTINUE")
+        print(continue_simulation)
+        print(next_event_type)
+           
+    print("total_cost:", handling_cost+ordereing_cost+shortage_cost)
+    print("handling_cost:", handling_cost)
+    print("ordereing_cost:", ordereing_cost)
+    print("shortage_cost:", shortage_cost)
+    print("total_demands:", all_customer_demands)
+    print("total_orders:", all_orders)
+
+if __name__ == "__main__":
+    main()
+
