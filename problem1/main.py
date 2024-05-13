@@ -2,6 +2,10 @@
 #based on Simulation Modeling and Analysis, Averil Law
 
 import numpy.random as random
+import numpy as np
+import matplotlib.pyplot as plt
+
+global debug
 
 #Adds new items to inventory and clears backlogged items
 def add_items(num_items, items_inventory, inventory_levels, sim_time):
@@ -10,12 +14,18 @@ def add_items(num_items, items_inventory, inventory_levels, sim_time):
         to_add = num_items + inventory_levels;
     for i in range(to_add):
         new_time = sim_time + random.uniform(1.5, 2.5)
+        new_time = 120
         items_inventory.append(new_time)
     inventory_levels += num_items;
     return inventory_levels
 
 #Takes the items from the inventory
 def take_items(num_items, items_inventory, inventory_levels, roten_items, sim_time):
+    global debug
+
+    if debug:
+        print(">>>BEGGINING INVENTORY LEVELS:", inventory_levels)
+        print(" WAS GOING TO TAKE:", num_items)
     to_take = num_items;
     for i in range(inventory_levels):
         item = items_inventory.pop(0);
@@ -27,6 +37,10 @@ def take_items(num_items, items_inventory, inventory_levels, roten_items, sim_ti
             roten_items += 1;
             to_take += 1;
     inventory_levels = inventory_levels - to_take;
+    if debug:
+        print(" IN THE END TOOK:", to_take)
+        print(" NEW_INVENTORY_LEVELS:", inventory_levels)
+
     return inventory_levels, roten_items
 
 #Make time pass
@@ -74,7 +88,6 @@ def demand_costumer(inventory_levels, items_inventory, all_customer_demands, all
     #Place the event for the next order
     time_next_order = sim_time + random.exponential(scale=0.1)
     time_next_event.append(('customer_demand', time_next_order))
-    #print("sold:", order)
     return inventory_levels, all_customer_demands, all_roten_items
 
 #Evento: begining of the month, reavaluate inventory
@@ -83,25 +96,21 @@ def inventory_evaluation_and_ordering(inventory_levels, time_next_event, invento
     (inc_normal, inc_express, base_normal, base_express) = prices
     (small_s, big_s) =  inventory_data
 
-    [handling_cost, ordering_cost, shortage_cost, all_orders] = statistics;
+    [handling_cost, ordering_cost, shortage_cost, all_orders, num_orders, num_shortages, average_inv] = statistics;
 
     #Check the inventory levels
     to_order = 0;
     inc = inc_normal;
     base = base_normal;
-    #print("EVALUATION-> HAS:", inventory_levels)
     if inventory_levels < 0:
-        #print("WILL ASK EXPRESSO BECAUSE:", inventory_levels)
-        #input()
         to_order = big_s - inventory_levels;
         inc = inc_express;
         base = base_express;
         next_delivery_time = sim_time + random.uniform(0.25, 0.5)
-        #print("WILL ORDER EXPRESSO")
     elif inventory_levels < small_s:
         to_order = big_s - inventory_levels;
+        #to_order = big_s - inventory_levels;
         next_delivery_time = sim_time + random.uniform(0.5, 1)
-        #print("WILL ORDER NORMAL")
 
     #Add the next event to evaluate inventory
     next_avaliation_time = sim_time + 1;
@@ -109,25 +118,30 @@ def inventory_evaluation_and_ordering(inventory_levels, time_next_event, invento
 
     #Check that the quantity to demmand is bigger than zero
     if to_order > 0:
-        #print("now have", inventory_levels, " so will order", to_order)
-
         ordering_cost += base + inc * to_order;
         outstanding_order = to_order;
         all_orders += to_order;
+        num_orders += 1;
 
         #Adds the event to receive the new stock
         time_next_event.append(('delivery', next_delivery_time))
     
     #Adds cost 5 per item in the backlog
     if inventory_levels < 0:
-        print("SHORTAGE COST:", shortage_cost)
         shortage_cost += - 5 * inventory_levels; #Negative because the inventory level is negative also
-        print("SHORTAGE COST:", shortage_cost)
+        num_shortages += 1
     else:
         #Adds cust 1 for every item in the inventory
         handling_cost += inventory_levels
 
-    statistics = [handling_cost, ordering_cost, shortage_cost, all_orders];
+    global debug
+    if debug:
+        print("<<<EVALIATION")
+        print("  INVENTORY_LEVELS:", inventory_levels)
+        print("  WILL ORDER:", to_order)
+
+    average_inv += inventory_levels;
+    statistics = [handling_cost, ordering_cost, shortage_cost, all_orders, num_orders, num_shortages, average_inv];
     return outstanding_order, statistics 
 
 #Event: End of the simulation
@@ -171,11 +185,19 @@ def iteration(inventory_data):
     all_customer_demands = 0;
     all_roten_items = 0;
     all_orders = 0;
+    num_orders = 0;
+    num_shortages = 0;
+    average_inv = 0;
 
-    statistics = [handling_cost, ordering_cost, shortage_cost, all_orders]
+    all_time_backlogged = 0;
+    begin_backlog = -1;
+
+    statistics = [handling_cost, ordering_cost, shortage_cost, all_orders, num_orders, num_shortages, average_inv]
 
     items_inventory = [];
-    inventory_levels = add_items(inventory_data[1] + 20, items_inventory, inventory_levels, sim_time);
+    initial_items = inventory_data[1] + 20
+    initial_items = 60
+    inventory_levels = add_items(initial_items, items_inventory, inventory_levels, sim_time);
 
     time_next_event = []
     time_next_event.append(("End_simulation", simulation_end_months))
@@ -199,11 +221,19 @@ def iteration(inventory_data):
             outstanding_order,statistics = inventory_evaluation_and_ordering(inventory_levels, time_next_event, inventory_data, prices, sim_time, outstanding_order, statistics);
         elif next_event_type == 'customer_demand':
             inventory_levels, all_customer_demands, all_roten_items = demand_costumer(inventory_levels, items_inventory, all_customer_demands, all_roten_items, time_next_event, sim_time)
+            if inventory_levels < 0 and begin_backlog == -1:
+                #print("WILL BACKLOG")
+                begin_backlog = sim_time;
         elif next_event_type == 'delivery':
             inventory_levels = arrive_order(inventory_levels, outstanding_order, items_inventory, sim_time)
-        #input("COPNTINUE")
+            if begin_backlog != -1 and inventory_levels > 0:
+                all_time_backlogged += (sim_time-begin_backlog);
+                begin_backlog = -1;
+        global debug
+        if debug:
+            input("CONTINUE")
     
-    [handling_cost, ordering_cost, shortage_cost, all_orders] = statistics;
+    [handling_cost, ordering_cost, shortage_cost, all_orders, num_orders, num_shortages, average_inv] = statistics;
     total_cost = handling_cost+ordering_cost+shortage_cost
     #print("total_cost:", handling_cost+ordering_cost+shortage_cost)
     #print("handling_cost:", handling_cost)
@@ -211,10 +241,15 @@ def iteration(inventory_data):
     #print("shortage_cost:", shortage_cost)
     #print("total_demands:", all_customer_demands)
     #print("total_orders:", all_orders)
-    return total_cost, all_customer_demands, all_roten_items, statistics
+    return total_cost, all_customer_demands, all_roten_items, statistics, all_time_backlogged
 
 
-def main():
+def run_iters(inventory_data, iters):
+
+    global debug
+    debug = False
+    #debug = True
+
     sum_cost = 0;
     sum_demands = 0;
     sum_roten = 0;
@@ -224,17 +259,16 @@ def main():
     shortage_sum = 0
     ordered_sum = 0;
 
-    iters = 100;
-    num = 7 #TEST
+    all_orders = 0;
+    all_shortages = 0;
+    all_avg_inv = 0;
 
-    all_s = [(20,40), (20,60), (20,80), (20,100), (40,60), (40,80), (60,80), (60,100)];
+    all_backlogged_time = 0;
 
-    inventory_data = all_s[num];
-    
     for _ in range(iters):
-        new_cost, new_demands, new_roten, all_costs = iteration(inventory_data)
+        new_cost, new_demands, new_roten, all_costs, backlogged_time = iteration(inventory_data)
 
-        [handling, ordering, shortage, ordered] = all_costs
+        [handling, ordering, shortage, ordered, total_orders, total_shortages, avg_inv] = all_costs
 
         sum_cost += new_cost
         sum_demands += new_demands
@@ -245,15 +279,66 @@ def main():
         shortage_sum += shortage;
         ordered_sum += ordered;
 
-    print("SMALL_S:", inventory_data[0], " BIG_S:", inventory_data[1])
-    print("N:", num, " AND IN 10 THE AVERAGE COST IS:", sum_cost/iters)
-    print("N:", num, " AND IN 10 THE AVERAGE DEMANDS IS:", sum_demands/(iters*120))
-    print("N:", num, " AND IN 10 THE AVERAGE ROTEN IS:", sum_roten/(iters*120))
+        all_orders += total_orders;
+        all_shortages += total_shortages;
+        all_avg_inv += avg_inv;
 
-    print("N:", num, " AND IN 10 THE AVERAGE HANDLING IS:", handling_sum/(iters))
-    print("N:", num, " AND IN 10 THE AVERAGE ORDERING IS:", ordering_sum/(iters))
-    print("N:", num, " AND IN 10 THE AVERAGE SHORTAGE IS:", shortage_sum/(iters))
-    print("N:", num, " AND IN 10 THE AVERAGE ORDERED IS:", ordered_sum/(iters*120))
+        all_backlogged_time += backlogged_time;
+
+    #print("SMALL_S:", inventory_data[0], " BIG_S:", inventory_data[1])
+    #print( " AND IN 10 THE AVERAGE COST IS:", sum_cost/iters)
+    #print( " AND IN 10 THE AVERAGE DEMANDS IS:", sum_demands/(iters*120))
+    #print( " AND IN 10 THE AVERAGE DEMANDS IS:", sum_demands/(all_orders))
+    #print( " AND IN 10 THE AVERAGE ROTEN IS:", sum_roten/(iters*120))
+
+    #print( " AND IN 10 THE AVERAGE HANDLING IS:", handling_sum/(iters))
+    #print( " AND IN 10 THE AVERAGE ORDERING IS:", ordering_sum/(iters))
+    #print( " AND IN 10 THE AVERAGE SHORTAGE IS:", shortage_sum/(iters))
+    #print( " AND IN 10 THE AVERAGE ORDERED IS:", ordered_sum/(all_orders))
+
+    #print( " AND IN 10 THE TOTAL ORDERS ARE:", all_orders/(iters))
+    #print( " AND IN 10 THE TOTAL SHORTAGES IS:", all_shortages/(iters))
+    #print( " AND IN 10 THE AVERAGE INV LEVEL IS:", all_avg_inv/(iters*120))
+
+    #print( " AND IN 10 THE AVERAGE BACKLOGGED TIME IS:", all_backlogged_time/(iters))
+    
+    return sum_cost/iters, sum_roten/(iters*120), all_backlogged_time/iters, all_shortages/iters
+    
+def main():
+    NI=0;
+    all_s = [(20,40), (20,60), (20,80), (20,100), (40,60), (40,80), (60,80), (60,100)];
+
+    #inventory_data = all_s[NI];
+    inc_i = 10;
+    value_i = 60;
+    max_i = 100 + inc_i;
+    min_i = value_i + 20;
+    iters = (max_i-min_i)//inc_i;
+
+    all_cost = np.zeros((iters,1))
+    all_rotten = np.zeros((iters,1))
+    all_time = np.zeros((iters,1))
+    all_express = np.zeros((iters,1))
+
+    x = np.zeros((iters, 1))
+    
+    count = 0;
+    for i in range(min_i, max_i, inc_i):
+        inventory_data = (value_i,i)
+        avg_cos, avg_roten, avg_time, avg_express = run_iters(inventory_data, iters);
+        all_cost[count] = avg_cos;
+        all_rotten[count] = avg_roten;
+        all_time[count] = avg_time;
+        all_express[count] = avg_express;
+
+        x[count] = i;
+        count += 1
+    #plt.plot(x,all_time);
+    #plt.xlabel("Big S")
+    #plt.ylabel("Total amount of time backlogged")
+    #plt.title("Average amount of time backlogged with small S=60")
+    #plt.show()
+
 
 if __name__ == "__main__":
     main()
